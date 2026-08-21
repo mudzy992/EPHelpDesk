@@ -1,0 +1,15 @@
+---
+description: React/Vite frontend rules for EP-HelpDesk
+globs: ["frontend/src/**/*.tsx", "frontend/src/**/*.ts"]
+alwaysApply: false
+---
+
+# Frontend pravila (React + Vite, Tailwind, Radix)
+
+- Struktura već postoji: `pages/`, `components/`, `services/`, `store/`, `router/`, `lib/` — ne miješati odgovornosti.
+- Sav API pristup ide kroz `services/api.ts` (axios instanca s interceptorom), nikad direktan fetch po komponentama.
+- Server state kroz `@tanstack/react-query`; klijentski auth state kroz `store/auth.store.ts` (zustand) — ne uvoditi novi state management pattern bez razloga.
+- Svaka forma: validacija prije submit-a, eksplicitan loading i error state.
+- Nove UI komponente: prvo provjeri `components/ui/` prije nego praviš novu; koristi Radix primitive + `cn()` iz `lib/utils.ts` za klase (shadcn-stil).
+- KB intercept flow (prije submit-a tiketa na `TicketsPage`) je poseban UX korak — ne preskakati ga ni u jednoj verziji forme.
+- Alias `@/` mapira na `frontend/src/` (već podešeno u vite.config.ts i tsconfig.json).

@@ -1,0 +1,14 @@
+---
+description: Prisma/MySQL database rules for EP-HelpDesk
+globs: ["backend/prisma/**/*.prisma", "backend/prisma/**/*.ts"]
+alwaysApply: false
+---
+
+# Database pravila
+
+- `backend/prisma/schema.prisma` je već kompletan za MVP (svih 6 domena) — vidi `docs/01-domain-model.md` za pregled. Ne dodavati nove modele bez ažuriranja tog dokumenta.
+- OrganizationalUnit je self-referencing tree (parentId/children) — nikad ne praviti zasebne tabele po nivou hijerarhije.
+- Svaka nova relacija: eksplicitan foreign key, unique constraint gdje ima smisla, index na foreign key kolonama (prati postojeći stil u schema.prisma).
+- Migracije SAMO kroz `npm run db:migrate` (`prisma migrate dev`) — nikad ručna izmjena baze.
+- Izbjegavaj N+1: koristi `include`/`select` eksplicitno.
+- Nakon izmjene sheme: `npm run db:generate` prije nego se koristi novi tip u kodu.

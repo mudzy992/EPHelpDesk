@@ -1,0 +1,331 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// =========================================================
+// 1. ORGANIZATIONAL STRUCTURE
+// =========================================================
+
+enum OrganizationalUnitType {
+  DIRECTORATE
+  BRANCH
+  OFFICE
+  SECTOR
+  SERVICE
+}
+
+model OrganizationalUnit {
+  id   String                 @id @default(uuid())
+  name String
+  type OrganizationalUnitType
+
+  parentId String?
+  parent   OrganizationalUnit?  @relation("OUHierarchy", fields: [parentId], references: [id])
+  children OrganizationalUnit[] @relation("OUHierarchy")
+
+  code      String?  @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users        User[]
+  groups       Group[]
+  tickets      Ticket[]      @relation("OriginUnit")
+  routingRules RoutingRule[]
+
+  @@index([parentId])
+}
+
+// =========================================================
+// 2. IDENTITY & ACCESS
+// =========================================================
+
+model Role {
+  id    String @id @default(uuid())
+  name  String @unique // USER | AGENT | ADMIN | SUPER_ADMIN
+  users User[]
+}
+
+model User {
+  id         String  @id @default(uuid())
+  email      String  @unique
+  fullName   String
+  adObjectId String? @unique // Azure AD Object ID (null dok AD integracija nije aktivna)
+  company    String?
+  department String?
+
+  organizationalUnitId String
+  organizationalUnit   OrganizationalUnit @relation(fields: [organizationalUnitId], references: [id])
+
+  roleId String
+  role   Role   @relation(fields: [roleId], references: [id])
+
+  groups GroupMember[]
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  ticketsRequested       Ticket[]           @relation("Requester")
+  ticketsAssigned        Ticket[]           @relation("Assignee")
+  ticketActivities       TicketActivity[]
+  ticketTimeLogs         TicketTimeLog[]
+  knowledgeArticles      KnowledgeArticle[]
+  knowledgeFeedback      KnowledgeFeedback[]
+  notifications          Notification[]
+
+  @@index([organizationalUnitId])
+  @@index([roleId])
+}
+
+model Group {
+  id   String @id @default(uuid())
+  name String
+
+  organizationalUnitId String
+  organizationalUnit   OrganizationalUnit @relation(fields: [organizationalUnitId], references: [id])
+
+  members      GroupMember[]
+  tickets      Ticket[]      @relation("AssignedGroup")
+  routingRules RoutingRule[]
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@index([organizationalUnitId])
+}
+
+model GroupMember {
+  id String @id @default(uuid())
+
+  userId  String
+  groupId String
+  user    User  @relation(fields: [userId], references: [id])
+  group   Group @relation(fields: [groupId], references: [id])
+
+  @@unique([userId, groupId])
+  @@index([groupId])
+}
+
+// =========================================================
+// 3. TICKETING SYSTEM
+// =========================================================
+
+enum TicketStatus {
+  PENDING
+  ASSIGNED
+  IN_PROGRESS
+  WAITING_FOR_USER
+  RESOLVED
+  CLOSED
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+model Ticket {
+  id          String         @id @default(uuid())
+  title       String
+  description String         @db.Text
+  status      TicketStatus   @default(PENDING)
+  priority    TicketPriority @default(MEDIUM)
+
+  requesterId String
+  requester   User   @relation("Requester", fields: [requesterId], references: [id])
+
+  assignedGroupId String?
+  assignedGroup   Group?  @relation("AssignedGroup", fields: [assignedGroupId], references: [id])
+
+  assignedUserId String?
+  assignedUser   User?   @relation("Assignee", fields: [assignedUserId], references: [id])
+
+  serviceId String
+  service   Service @relation(fields: [serviceId], references: [id])
+
+  originUnitId String
+  originUnit   OrganizationalUnit @relation("OriginUnit", fields: [originUnitId], references: [id])
+
+  dueDate   DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  activities TicketActivity[]
+  timeLogs   TicketTimeLog[]
+
+  @@index([requesterId])
+  @@index([assignedGroupId])
+  @@index([assignedUserId])
+  @@index([serviceId])
+  @@index([originUnitId])
+  @@index([status])
+}
+
+enum ActivityType {
+  COMMENT
+  STATUS_CHANGE
+  ASSIGNMENT
+  SYSTEM
+}
+
+model TicketActivity {
+  id String @id @default(uuid())
+
+  ticketId String
+  ticket   Ticket @relation(fields: [ticketId], references: [id])
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  type    ActivityType
+  content String       @db.Text
+
+  createdAt DateTime @default(now())
+
+  @@index([ticketId])
+}
+
+model TicketTimeLog {
+  id String @id @default(uuid())
+
+  ticketId String
+  ticket   Ticket @relation(fields: [ticketId], references: [id])
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  startedAt DateTime
+  endedAt   DateTime?
+  duration  Int? // sekunde, računa backend, nikad frontend
+
+  createdAt DateTime @default(now())
+
+  @@index([ticketId])
+  @@index([userId])
+}
+
+// =========================================================
+// 4. KNOWLEDGE BASE
+// =========================================================
+
+model KnowledgeArticle {
+  id      String @id @default(uuid())
+  title   String
+  content String @db.Text
+
+  serviceId String?
+  service   Service? @relation(fields: [serviceId], references: [id])
+
+  createdById String
+  createdBy   User   @relation(fields: [createdById], references: [id])
+
+  isPublished Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  feedback KnowledgeFeedback[]
+
+  @@index([serviceId])
+  @@fulltext([title, content])
+}
+
+model KnowledgeFeedback {
+  id String @id @default(uuid())
+
+  articleId String
+  article   KnowledgeArticle @relation(fields: [articleId], references: [id])
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  isHelpful Boolean
+  createdAt DateTime @default(now())
+
+  @@index([articleId])
+}
+
+// =========================================================
+// 5. ROUTING & CONFIGURATION
+// =========================================================
+
+model Service {
+  id   String @id @default(uuid())
+  name String
+
+  categoryId String?
+  category   ServiceCategory? @relation(fields: [categoryId], references: [id])
+
+  isActive Boolean @default(true)
+
+  tickets           Ticket[]
+  knowledgeArticles KnowledgeArticle[]
+  routingRules      RoutingRule[]
+
+  @@index([categoryId])
+}
+
+model ServiceCategory {
+  id       String    @id @default(uuid())
+  name     String
+  services Service[]
+}
+
+model RoutingRule {
+  id String @id @default(uuid())
+
+  serviceId String
+  service   Service @relation(fields: [serviceId], references: [id])
+
+  unitId String
+  unit   OrganizationalUnit @relation(fields: [unitId], references: [id])
+
+  groupId String
+  group   Group  @relation(fields: [groupId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@unique([serviceId, unitId])
+  @@index([groupId])
+}
+
+// =========================================================
+// 6. SYSTEM & AUDIT
+// =========================================================
+
+model Notification {
+  id String @id @default(uuid())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  title   String
+  content String @db.Text
+  isRead  Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model AuditLog {
+  id String @id @default(uuid())
+
+  userId   String?
+  action   String
+  entity   String
+  entityId String
+  metadata Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([entity, entityId])
+  @@index([userId])
+}

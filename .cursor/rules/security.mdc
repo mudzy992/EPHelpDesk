@@ -1,0 +1,14 @@
+---
+description: Security & RBAC rules for EP-HelpDesk
+globs: ["backend/src/common/guards/**/*.ts", "backend/src/modules/auth/**/*.ts"]
+alwaysApply: false
+---
+
+# Security pravila
+
+- RBAC role (već postoje kao seed podatak): USER, AGENT, ADMIN, SUPER_ADMIN.
+- `OuAccessGuard` (trenutno pass-through placeholder u `common/guards/ou-access.guard.ts`): Admin vidi SAMO podatke svoje OU; SuperAdmin vidi sve. Implementira se u Fazi 1.
+- Autentikacija isključivo kroz Azure AD (MSAL) — nema lokalnih lozinki, nema privremenog auth bypass-a čak ni u dev okruženju bez eksplicitnog dev-guard flaga.
+- Token-based auth za Edge ekstenziju (Faza 6) — nema lokalnog storage-a osjetljivih podataka.
+- Svaka akcija koja mijenja stanje (status tiketa, assignment, poruka) mora ostaviti trag u `AuditLog` modelu.
+- `JWT_SECRET` i Azure AD kredencijali idu isključivo kroz `.env`, nikad hardkodovano.

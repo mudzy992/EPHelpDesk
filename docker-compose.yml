@@ -1,0 +1,16 @@
+services:
+  db:
+    image: mariadb:11
+    restart: unless-stopped
+    environment:
+      MARIADB_DATABASE: ephelpdesk
+      MARIADB_USER: ephelpdesk
+      MARIADB_PASSWORD: ephelpdesk
+      MARIADB_ROOT_PASSWORD: root
+    ports:
+      - "3306:3306"
+    volumes:
+      - ephelpdesk_db_data:/var/lib/mysql
+
+volumes:
+  ephelpdesk_db_data:
